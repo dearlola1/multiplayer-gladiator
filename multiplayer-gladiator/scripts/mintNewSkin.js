@@ -8,8 +8,12 @@ async function main() {
   
   const tokenURI = "https://ipfs.io/ipfs/QmdR4Auv39cmoaFqrdGdiMCuJuKWXHkNCwFt4uH1WRxV6a"; // New JSON CID
   const quantity = 5;
-  const price = ethers.utils.parseUnits("0.000000000005", "ether");
+
+  // Convert 816,734.9527 Gwei to Wei
+  const priceInGwei = "816734.9527";
+  const price = ethers.utils.parseUnits(priceInGwei, "gwei");
   
+  // Mint the new skins without manually setting gas parameters
   const mintTx = await gameSkinNFT.mintToContract(tokenURI, quantity, price);
   await mintTx.wait();
   
@@ -18,7 +22,4 @@ async function main() {
 
 main()
 .then(() => process.exit(0))
-.catch((error) => {
-  console.error("Error minting new skins:", error);
-  process.exit(1);
-});
+.catch((error)
