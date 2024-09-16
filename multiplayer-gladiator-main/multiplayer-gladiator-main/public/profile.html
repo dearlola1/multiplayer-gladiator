@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+        }
+        #profile-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        #profile-container h2, #profile-container h3 {
+            text-align: center;
+        }
+        .profile-info {
+            margin-bottom: 20px;
+        }
+        .profile-info label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .profile-info input, .profile-info select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        #save-button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        #save-button:hover {
+            background-color: #0056b3;
+        }
+        #owned-nft-list, #nft-list {
+            margin-top: 20px;
+        }
+        .nft-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            margin-bottom: 10px;
+        }
+        .nft-item img {
+            max-width: 100px;
+            margin-right: 10px;
+        }
+        .nft-item button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+        .nft-item button:hover {
+            background-color: #218838;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@metamask/detect-provider/dist/detect-provider.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/web3/dist/web3.min.js"></script>
+</head>
+<body>
+    <div id="profile-container">
+        <h2>Your Profile</h2>
+        <div class="profile-info">
+            <label for="username">Username:</label>
+            <input type="text" id="username" placeholder="Enter your username" />
+        </div>
+        <div class="profile-info">
+            <label for="skin">Select Skin:</label>
+            <select id="skin">
+                <option value="frogman.fbx">Frogman</option>
+                <!-- The list will be populated dynamically -->
+            </select>
+        </div>
+        <button id="save-button">Save Profile</button>
+
+        <h3>Your Owned NFTs</h3>
+        <div id="owned-nft-list">
+            <!-- Owned NFT list will be populated here -->
+        </div>
+
+        <h3>Available NFTs</h3>
+        <div id="nft-list">
+            <!-- NFT list will be populated here -->
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+        const provider = await detectEthereumProvider();
+        if (provider) {
+            const web3 = new Web3(provider);
+            const accounts = await provider.request({ method: 'eth_requestAccounts' });
+            const address = accounts[0];
+
+            console.log(`Connected to MetaMask with address: ${address}`);
+
+            // Fetch and display profile data
+            try {
+                const response = await fetch(`/getProfile?address=${address}`);
+                const profile = await response.json();
+                console.log('Profile data received:', profile);
+
+                if (profile && profile.username) {
+                    document.getElementById('username').value = profile.username;
+                } else {
+                    console.warn('No username found in profile data.');
+                }
+
+                // Load NFT skins into the select dropdown
+                const nftResponse = await fetch(`/getOwnedNFTs?address=${address}`);
+                const nftData = await nftResponse.json();
+
+                if (Array.isArray(nftData)) {
+                    const skinSelect = document.getElementById('skin');
+                    const ownedNftList = document.getElementById('owned-nft-list');
+                    console.log('Owned NFTs:', nftData);
+
+                    // Clear existing options
+                    skinSelect.innerHTML = '<option value="frogman.fbx">Frogman</option>';
+
+                    nftData.forEach(async (nft) => {
+                        try {
+                            const nftDetailsResponse = await fetch(nft.tokenURI);
+                            const nftDetails = await nftDetailsResponse.json();
+                            const animationUrl = nftDetails.animation_url;
+                            
+                            const option = document.createElement('option');
+                            option.value = animationUrl;
+                            option.text = `Token ${nft.tokenId}`;
+                            skinSelect.add(option);
+
+                            // Display owned NFTs
+                            const nftItem = document.createElement('div');
+                            nftItem.classList.add('nft-item');
+                            nftItem.innerHTML = `<img src="${animationUrl}" alt="Token ${nft.tokenId}"><span>Token ${nft.tokenId}</span>`;
+
+                            // Button to list NFT for sale
+                            const listButton = document.createElement('button');
+                            listButton.textContent = 'List for Sale';
+                            listButton.addEventListener('click', async () => {
+                                const price = prompt('Enter sale price in wei:');
+                                if (price && !isNaN(price)) {
+                                    try {
+                                        const transactionParameters = {
+                                            to: nft.contractAddress, // Assuming the NFT contract address is part of nft object
+                                            from: address,
+                                            data: web3.eth.abi.encodeFunctionCall({
+                                                name: 'listNFTForSale',
+                                                type: 'function',
+                                                inputs: [{
+                                                    type: 'uint256',
+                                                    name: 'tokenId'
+                                                }, {
+                                                    type: 'uint256',
+                                                    name: 'price'
+                                                }]
+                                            }, [nft.tokenId, price])
+                                        };
+
+                                        await provider.request({
+                                            method: 'eth_sendTransaction',
+                                            params: [transactionParameters],
+                                        });
+                                        console.log(`NFT ${nft.tokenId} listed for sale successfully.`);
+                                        alert('NFT listed for sale successfully!');
+                                    } catch (error) {
+                                        console.error('Error listing NFT for sale:', error);
+                                        alert('Failed to list NFT for sale.');
+                                    }
+                                } else {
+                                    alert('Invalid price.');
+                                }
+                            });
+
+                            nftItem.appendChild(listButton);
+                            ownedNftList.appendChild(nftItem);
+                        } catch (err) {
+                            console.error(`Failed to fetch NFT details for tokenId ${nft.tokenId}:`, err);
+                        }
+                    });
+
+                    // Set the selected skin in the dropdown
+                    skinSelect.value = profile.skin || 'frogman.fbx';
+                } else {
+                    console.error('Failed to fetch NFTs. Response:', nftData);
+                    document.getElementById('owned-nft-list').innerHTML = '<p>Error fetching owned NFTs.</p>';
+                }
+            } catch (error) {
+                console.error('Error fetching profile or NFTs:', error);
+                document.getElementById('owned-nft-list').innerHTML = '<p>Error fetching profile or NFTs.</p>';
+            }
+
+            document.getElementById('save-button').addEventListener('click', async () => {
+                const username = document.getElementById('username').value;
+                const skin = document.getElementById('skin').value;
+                
+                console.log(`Saving profile with skin: ${skin}`);  // Log the selected skin
+
+                try {
+                    const saveResponse = await fetch('/updateProfile', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ address, username, skin })
+                    });
+
+                    if (saveResponse.ok) {
+                        console.log('Profile updated successfully.');
+                        alert('Profile updated successfully!');
+                    } else {
+                        console.error('Failed to update profile. Response:', saveResponse);
+                        alert('Failed to update profile.');
+                    }
+                } catch (error) {
+                    console.error('Error updating profile:', error);
+                    alert('Error updating profile.');
+                }
+            });
+
+
+            // Load available NFTs for purchase
+            try {
+                const availableNFTResponse = await fetch(`/getAvailableNFTs`);
+                const availableNFTs = await availableNFTResponse.json();
+
+                if (Array.isArray(availableNFTs)) {
+                    const nftList = document.getElementById('nft-list');
+                    console.log('Available NFTs:', availableNFTs);
+
+                    availableNFTs.forEach(nft => {
+                        const nftItem = document.createElement('div');
+                        nftItem.classList.add('nft-item');
+
+                        const nftInfo = document.createElement('div');
+                        nftInfo.innerHTML = `<img src="${nft.tokenURI}" alt="Token ${nft.tokenId}"><span>Token ${nft.tokenId}</span>`;
+                        nftItem.appendChild(nftInfo);
+
+                        const purchaseButton = document.createElement('button');
+                        purchaseButton.textContent = `Purchase for ${web3.utils.fromWei(nft.price, 'ether')} BNB`;
+                        purchaseButton.addEventListener('click', async () => {
+                            const transactionParameters = {
+                                to: nft.contractAddress, // Assuming the NFT contract address is part of nft object
+                                from: address,
+                                value: web3.utils.toHex(nft.price),
+                                data: web3.eth.abi.encodeFunctionCall({
+                                    name: 'purchaseNFT',
+                                    type: 'function',
+                                    inputs: [{
+                                        type: 'uint256',
+                                        name: 'tokenId'
+                                    }]
+                                }, [nft.tokenId])
+                            };
+
+                            try {
+                                await provider.request({
+                                    method: 'eth_sendTransaction',
+                                    params: [transactionParameters],
+                                });
+                                                                console.log(`NFT ${nft.tokenId} purchased successfully.`);
+                                alert('NFT purchased successfully!');
+                                window.location.reload(); // Reload the page to update the NFT list
+                            } catch (error) {
+                                console.error('Error purchasing NFT:', error);
+                                alert('Failed to purchase NFT.');
+                            }
+                        });
+                        nftItem.appendChild(purchaseButton);
+
+                        nftList.appendChild(nftItem);
+                    });
+                } else {
+                    console.error('Failed to fetch available NFTs. Response:', availableNFTs);
+                    document.getElementById('nft-list').innerHTML = '<p>Error fetching available NFTs.</p>';
+                }
+            } catch (error) {
+                console.error('Error fetching available NFTs:', error);
+                document.getElementById('nft-list').innerHTML = '<p>Error fetching available NFTs.</p>';
+            }
+        } else {
+            console.error('Please install MetaMask!');
+        }
+    });
+    </script>
+</body>
+</html>

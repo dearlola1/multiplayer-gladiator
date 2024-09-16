@@ -1,0 +1,11 @@
+{
+  "name": "Knight Skin",
+  "description": "The First to ever be knighted.",
+  "animation_url": "https://ipfs.io/ipfs/QmerHFzMYKytMgU6xgBdA7dEw1VzCBQtsGmTf3iTg54veY",
+  "attributes": [
+    {
+      "trait_type": "Model",
+      "value": "Knight"
+    }
+  ]
+}
