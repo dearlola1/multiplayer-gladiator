@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RNG Royale HTML</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #2a3b58; /* Indigo, night sky color */
+            z-index: 1;
+        }
+
+        #chat-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        #chatbox {
+            height: 150px;
+            overflow-y: scroll;
+        }
+
+        #message-input {
+            width: 80%;
+        }
+
+        #send-button {
+            width: 20%;
+        }
+
+        #winner-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 48px;
+            font-weight: bold;
+            z-index: 1000;
+            display: none;
+        }
+
+        #login-button,
+        #profile-button,
+        #highscore-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            z-index: 1000;
+        }
+
+        #profile-button {
+            right: 150px;
+        }
+
+        #highscore-button {
+            right: 290px;
+        }
+
+        #join-button {
+            position: absolute;
+            bottom: 205px;
+            left: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #92367b;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            z-index: 1000;
+        }
+
+        #join-button:hover {
+            background-color: #218838;
+        }
+
+        /* High Scores Popup Styling */
+        #highscore-popup {
+            position: absolute;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 10000;
+            display: none;
+        }
+
+        #highscore-popup-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #highscore-popup-header h2 {
+            margin: 10;
+        }
+
+        #highscore-popup-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        #highscore-popup-list ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 20;
+        }
+
+        #highscore-popup-list li {
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        #close-highscore-button {
+            padding: 5px 10px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+
+        #close-highscore-button:hover {
+            background-color: #cc0000;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/loaders/FBXLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fflate@0.6.9/umd/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@metamask/detect-provider/dist/detect-provider.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.js"></script>
+</head>
+
+<body>
+    <div id="pointsDisplay" style="position: absolute; top: 10px; left: 10px; color: white; font-size: 18px; z-index: 1000;">
+        Points: 0
+    </div>
+    <div id="rankDisplay" style="position: absolute; top: 40px; left: 10px; color: white; font-size: 14px; z-index: 1000;">
+        Rank: --/--
+    </div>
+    <div id="chat-container">
+        <div id="chatbox"></div>
+        <input id="message-input" type="text" placeholder="Type a message..." />
+        <button id="send-button">Send</button>
+    </div>
+    <div id="winner-message"></div>
+    <button id="login-button">Login with MetaMask</button>
+    <button id="profile-button" style="display:none;">Profile</button>
+    <button id="highscore-button">High Scores</button>
+    <button id="join-button">Join</button>
+
+    <!-- High Scores Popup -->
+    <div id="highscore-popup">
+        <div id="highscore-popup-header">
+            <h2>High Scores</h2>
+            <button id="close-highscore-button">Close</button>
+        </div>
+        <div id="highscore-popup-list">
+            <ul id="highscore-list"></ul>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            console.log('DOM fully loaded and parsed');
+
+            let username;
+            let userProfile;
+            let playerPoints = 0;
+            let playerRank = '--';
+            let totalRegisteredPlayers = '--';
+
+            const loginButton = document.getElementById('login-button');
+            const profileButton = document.getElementById('profile-button');
+            const highscoreButton = document.getElementById('highscore-button');
+            const joinButton = document.getElementById('join-button');
+            const pointsDisplay = document.getElementById('pointsDisplay');
+            const rankDisplay = document.getElementById('rankDisplay');
+            const highscorePopup = document.getElementById('highscore-popup');
+            const highscoreList = document.getElementById('highscore-list');
+            const closeHighscoreButton = document.getElementById('close-highscore-button');
+
+            loginButton.addEventListener('click', loginWithMetaMask);
+            profileButton.addEventListener('click', function () {
+                window.open(`/profile?address=${encodeURIComponent(userProfile.address)}`, '_blank');
+            });
+
+            joinButton.addEventListener('click', function () {
+                if (!username) {
+                    alert('Please log in with MetaMask to join the game.');
+                } else {
+                    socket.send(JSON.stringify({ type: 'chat', username: username, message: '!join' }));
+                }
+            });
+
+            highscoreButton.addEventListener('click', async function () {
+                highscoreList.innerHTML = ''; // Clear existing list
+                const response = await fetch('/getHighScores');
+                const highScores = await response.json();
+                highScores.forEach((score, index) => {
+                    const listItem = document.createElement('li');
+                    listItem.textContent = `${index + 1}. ${score.username}: ${score.points} points`;
+                    highscoreList.appendChild(listItem);
+                });
+                highscorePopup.style.display = 'block';
+            });
+
+            closeHighscoreButton.addEventListener('click', function () {
+                highscorePopup.style.display = 'none';
+            });
+
+            async function loginWithMetaMask() {
+                const provider = await detectEthereumProvider();
+
+                if (provider) {
+                    try {
+                        const accounts = await provider.request({ method: 'eth_requestAccounts' });
+                        const address = accounts[0];
+
+                        const chainId = await provider.request({ method: 'eth_chainId' });
+                        if (chainId !== '0x61') {
+                            try {
+                                await provider.request({
+                                    method: 'wallet_switchEthereumChain',
+                                    params: [{ chainId: '0x61' }],
+                                });
+                            } catch (switchError) {
+                                if (switchError.code === 4902) {
+                                    console.error('The BSC Testnet is not available in MetaMask. Please add it manually.');
+                                } else {
+                                    console.error('Failed to switch to the BSC Testnet:', switchError);
+                                }
+                            }
+                        }
+
+                        socket.send(JSON.stringify({ type: 'login', address: address }));
+                    } catch (error) {
+                        console.error('User rejected the request:', error);
+                    }
+                } else {
+                    console.error('Please install MetaMask!');
+                }
+            }
+
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x2a3b58); // Set the clear color to indigo
+            document.body.appendChild(renderer.domElement);
+
+            const controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.25;
+            controls.enableZoom = true;
+            controls.maxPolarAngle = Math.PI / 2;
+
+            const light = new THREE.DirectionalLight(0xffffff, 1);
+            light.position.set(5, 10, 7.5).normalize();
+            scene.add(light);
+
+            const oppositeLight = new THREE.DirectionalLight(0xffffff, 1);
+            oppositeLight.position.set(-5, -10, -7.5).normalize();
+            scene.add(oppositeLight);
+
+            const arenaGeometry = new THREE.CylinderGeometry(50, 50, 1, 32);
+            const arenaMaterial = new THREE.MeshBasicMaterial({ color: 0x808080 });
+            const arena = new THREE.Mesh(arenaGeometry, arenaMaterial);
+            scene.add(arena);
+
+            // Add the outline to the arena
+            const edges = new THREE.EdgesGeometry(arenaGeometry);
+            const lineMaterial = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 });
+            const lineSegments = new THREE.LineSegments(edges, lineMaterial);
+            scene.add(lineSegments);
+
+            const hudContainer = document.createElement('div');
+            hudContainer.style.position = 'absolute';
+            hudContainer.style.top = '0';
+            hudContainer.style.left = '0';
+            hudContainer.style.width = '100%';
+            hudContainer.style.height = '100%';
+            hudContainer.style.pointerEvents = 'none';
+            document.body.appendChild(hudContainer);
+
+            const countdownTimer = document.createElement('div');
+            countdownTimer.style.position = 'absolute';
+            countdownTimer.style.top = '50%';
+            countdownTimer.style.left = '50%';
+            countdownTimer.style.transform = 'translate(-50%, -50%)';
+            countdownTimer.style.color = 'white';
+            countdownTimer.style.fontSize = '48px';
+            countdownTimer.style.fontWeight = 'bold';
+            countdownTimer.style.zIndex = '1000';
+            countdownTimer.style.display = 'none';
+            hudContainer.appendChild(countdownTimer);
+
+            const winnerMessage = document.getElementById('winner-message');
+
+            let gladiatorsSpawned = false;
+            let combatPhase = false;
+            let orbitDirection = 1; // 1 for clockwise, -1 for counterclockwise
+
+            class Gladiator {
+                constructor(id, name, color, position, skin) {
+                    this.id = id;
+                    this.name = name;
+                    this.initialColor = color;
+                    this.health = 50;
+                    this.mesh = null;
+                    this.mixer = null;
+                    this.animations = {};
+                    this.currentAction = null;
+                    this.skin = skin;
+                    this.loadModel(position);
+
+                    this.predictedPosition = new THREE.Vector3(position.x, position.y, position.z);
+                    this.serverPosition = new THREE.Vector3(position.x, position.y, position.z);
+                    this.velocity = new THREE.Vector3(0, 0, 0);
+                    this.attackCooldown = 0;
+                    this.currentTarget = null;
+                    this.inCombat = false;
+
+                    this.currentState = 'frogmanidle';
+
+                    this.hpBarContainer = document.createElement('div');
+                    this.hpBarContainer.style.position = 'absolute';
+                    this.hpBarContainer.style.width = '50px';
+                    this.hpBarContainer.style.height = '7px';
+                    this.hpBarContainer.style.backgroundColor = 'red';
+                    this.hpBarContainer.style.borderRadius = '3px';
+                    this.hpBarContainer.style.overflow = 'hidden';
+                    this.hpBarContainer.style.zIndex = '1000';
+                    hudContainer.appendChild(this.hpBarContainer);
+
+                    this.hpBar = document.createElement('div');
+                    this.hpBar.style.width = '100%';
+                    this.hpBar.style.height = '100%';
+                    this.hpBar.style.backgroundColor = 'green';
+                    this.hpBar.style.borderRadius = '3px';
+                    this.hpBarContainer.appendChild(this.hpBar);
+
+                    this.nameLabel = document.createElement('div');
+                    this.nameLabel.style.position = 'absolute';
+                    this.nameLabel.style.color = 'white';
+                    this.nameLabel.style.fontSize = '12px';
+                    this.nameLabel.style.fontWeight = 'bold';
+                    this.nameLabel.style.transform = 'translate(-50%, -50%)';
+                    this.nameLabel.style.zIndex = '1000';
+                    this.nameLabel.textContent = name;
+                    hudContainer.appendChild(this.nameLabel);
+
+                    this.damageText = document.createElement('div');
+                    this.damageText.style.position = 'absolute';
+                    this.damageText.style.color = 'red';
+                    this.damageText.style.fontSize = '20px';
+                    this.damageText.style.fontWeight = 'bold';
+                    this.damageText.style.display = 'none';
+                    this.damageText.style.zIndex = '1000';
+                    hudContainer.appendChild(this.damageText);
+                }
+
+                async loadModel(position) {
+                    const loader = new THREE.FBXLoader();
+
+                    const modelUrl = this.skin;
+
+                    loader.load(modelUrl, (object) => {
+                        this.mesh = object;
+                        this.mesh.position.set(position.x, position.y, position.z);
+                        this.mesh.scale.set(0.05, 0.05, 0.05);
+                        scene.add(this.mesh);
+                        this.mixer = new THREE.AnimationMixer(this.mesh);
+                        this.loadAnimations();
+                    }, undefined, (error) => {
+                        console.error('Error loading model:', error);
+                        this.loadFallbackModel(position);
+                    });
+                }
+
+                async loadFallbackModel(position) {
+                    const loader = new THREE.FBXLoader();
+                    loader.load('https://multiplayer-gladiator.s3.us-east-2.amazonaws.com/frogman.fbx', (object) => {
+                        this.mesh = object;
+                        this.mesh.position.set(position.x, position.y, position.z);
+                        this.mesh.scale.set(0.05, 0.05, 0.05);
+                        scene.add(this.mesh);
+                        this.mixer = new THREE.AnimationMixer(this.mesh);
+                        this.loadAnimations();
+                    });
+                }
+
+                loadAnimations() {
+                    const loader = new THREE.FBXLoader();
+                    const animations = [
+                        'https://multiplayer-gladiator.s3.us-east-2.amazonaws.com/frogmanIdle.fbx',
+                        'https://multiplayer-gladiator.s3.us-east-2.amazonaws.com/frogmanPunch.fbx',
+                        'https://multiplayer-gladiator.s3.us-east-2.amazonaws.com/frogmanRunning.fbx?new=' + Date.now()
+                    ];
+                    animations.forEach((anim) => {
+                        loader.load(anim, (object) => {
+                            const animationAction = this.mixer.clipAction(object.animations[0]);
+                            const animName = anim.split('/').pop().split('.')[0].toLowerCase();
+                            animationAction.setLoop(THREE.LoopRepeat);
+                            this.animations[animName] = animationAction;
+                            if (animName === 'frogmanidle') {
+                                this.setAnimation('frogmanidle');
+                            }
+                        });
+                    });
+                }
+
+                setAnimation(animationName) {
+                    if (this.currentAction && this.currentAction._clip.name !== animationName) {
+                        this.currentAction.fadeOut(0.5);
+                    }
+                    this.currentAction = this.animations[animationName];
+                    if (this.currentAction) {
+                        this.currentAction.reset().fadeIn(0.5).play();
+                    }
+                }
+
+                updateHealthBar() {
+                    this.updateUIPosition(this.hpBarContainer, 5); // Position the HP bar with zoom adjustment
+
+                    // Positioning nameLabel and damageText relative to hpBarContainer
+                    this.updateRelativePosition(this.nameLabel, this.hpBarContainer, -15); // Above HP bar
+                    this.updateRelativePosition(this.damageText, this.hpBarContainer, 15); // Below HP bar
+                }
+
+                showDamage(damage) {
+                    this.updateRelativePosition(this.damageText, this.hpBarContainer, -10); // Adjust the -10 value for the desired position
+                    this.damageText.textContent = `-${damage}`;
+                    this.damageText.style.display = 'block';
+
+                    setTimeout(() => {
+                        this.damageText.style.display = 'none';
+                    }, 500);
+                }
+
+                showHealing(amount) {
+                    this.updateRelativePosition(this.damageText, this.hpBarContainer, 10); // Adjust the 10 value for the desired position
+                    this.damageText.textContent = `+${amount}`;
+                    this.damageText.style.color = 'green';
+                    this.damageText.style.display = 'block';
+
+                    setTimeout(() => {
+                        this.damageText.style.display = 'none';
+                        this.damageText.style.color = 'red'; // Reset color for the next damage display
+                    }, 500);
+                }
+
+                takeDamage(amount) {
+                    this.health -= amount;
+                    this.hpBar.style.width = `${(this.health / 50) * 100}%`;
+                    this.showDamage(amount);
+
+                    if (this.mesh) {
+                        // Cancel any existing color reset timeout
+                        if (this.colorResetTimeout) {
+                            clearTimeout(this.colorResetTimeout);
+                        }
+
+                        this.mesh.traverse((child) => {
+                            if (child.isMesh) {
+                                this.originalColor = child.material.color.getHex();
+                                child.material.color.set(0xff0000);
+                            }
+                        });
+
+                        // Reset the color after a short delay
+                        this.colorResetTimeout = setTimeout(() => {
+                            if (this.mesh) {
+                                this.mesh.traverse((child) => {
+                                    if (child.isMesh) {
+                                        child.material.color.set(this.originalColor);
+                                    }
+                                });
+                            }
+                        }, 200);
+                    }
+
+                    if (this.health <= 0) {
+                        this.remove();
+                    }
+                }
+
+                remove() {
+                    if (scene && this.mesh && this.mesh.parent === scene) {
+                        scene.remove(this.mesh);
+                    }
+                    if (hudContainer && this.hpBarContainer.parentElement === hudContainer) {
+                        hudContainer.removeChild(this.hpBarContainer);
+                    }
+                    if (hudContainer && this.damageText.parentElement === hudContainer) {
+                        hudContainer.removeChild(this.damageText);
+                    }
+                    if (hudContainer && this.nameLabel.parentElement === hudContainer) {
+                        hudContainer.removeChild(this.nameLabel);
+                    }
+                }
+
+                update(delta) {
+                    this.updateHealthBar();
+                    if (this.mixer) {
+                        this.mixer.update(delta);
+                    }
+                    if (this.predictedPosition && this.mesh) {
+                        const movementDistance = this.mesh.position.distanceTo(this.predictedPosition);
+                        this.mesh.position.lerp(this.predictedPosition, 0.1);
+                        if (this.currentTarget) {
+                            this.faceTarget(this.currentTarget);
+                            const distance = this.mesh.position.distanceTo(this.currentTarget.mesh.position);
+                            if (distance > 2) {
+                                if (movementDistance > 0.05) {
+                                    this.run();
+                                } else {
+                                    this.idle();
+                                }
+                                this.inCombat = false;
+                            } else {
+                                this.punch();
+                                this.inCombat = true;
+                            }
+                        } else {
+                            if (movementDistance > 0.05) {
+                                this.run();
+                            } else {
+                                this.idle();
+                            }
+                            this.inCombat = false;
+                        }
+                    }
+                }
+
+                reconcile(serverPosition) {
+                    if (serverPosition) {
+                        this.predictedPosition.copy(serverPosition);
+                    }
+                }
+
+                setState(state) {
+                    if (this.currentState !== state) {
+                        this.currentState = state;
+                        this.setAnimation(state);
+                    }
+                }
+
+                idle() {
+                    if (!combatPhase) {
+                        this.setState('frogmanidle');
+                    }
+                }
+
+                run() {
+                    if (!this.inCombat) {
+                        this.setState('frogmanrunning');
+                    }
+                }
+
+                punch() {
+                    this.setState('frogmanpunch');
+                }
+
+                faceTarget(target) {
+                    const direction = new THREE.Vector3();
+                    direction.subVectors(target.mesh.position, this.mesh.position).normalize();
+                    const angle = Math.atan2(direction.x, direction.z);
+                    this.mesh.rotation.y = angle;
+                }
+
+                setTarget(target) {
+                    this.currentTarget = target;
+                    const distance = this.mesh.position.distanceTo(target.mesh.position);
+                    if (distance > 2) {
+                        this.run();
+                    } else {
+                        this.punch();
+                    }
+                }
+
+                updateUIPosition(element, verticalOffset) {
+                    const vector = new THREE.Vector3();
+                    this.mesh.getWorldPosition(vector);
+                    vector.y += verticalOffset;
+
+                    // Check if the gladiator is in the camera's frustum
+                    const frustum = new THREE.Frustum();
+                    const cameraViewProjectionMatrix = new THREE.Matrix4();
+
+                    camera.updateMatrixWorld(); // make sure the camera matrix is updated
+                    camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+                    cameraViewProjectionMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+                    frustum.setFromProjectionMatrix(cameraViewProjectionMatrix);
+
+                    // If the gladiator is inside the frustum, show the UI element, otherwise hide it
+                    if (frustum.containsPoint(vector)) {
+                        vector.project(camera);
+
+                        const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+                        const y = (vector.y * -0.5 + 0.5) * window.innerHeight;
+
+                        element.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px)`;
+                        element.style.display = 'block';
+                    } else {
+                        element.style.display = 'none';
+                    }
+                }
+
+                updateRelativePosition(element, referenceElement, offset) {
+                    const refBounds = referenceElement.getBoundingClientRect();
+                    element.style.left = `${refBounds.left + refBounds.width / 2}px`;
+                    element.style.top = `${refBounds.top + offset}px`;
+                }
+            }
+
+            let gladiators = [];
+
+            const socket = new WebSocket('wss://multiplayer-gladiator-b55cb399f559.herokuapp.com');
+
+            socket.addEventListener('open', function (event) {
+                console.log('Connected to server');
+            });
+
+            socket.addEventListener('message', function (event) {
+                const data = JSON.parse(event.data);
+                console.log('Message from server received:', data);
+                if (data.type === 'profile') {
+                    username = data.profile.username;
+                    userProfile = data.profile;
+                    playerPoints = data.profile.points || 0;
+                    playerRank = data.profile.rank || '--';
+                    totalRegisteredPlayers = data.profile.totalRegisteredPlayers || '--';
+                    pointsDisplay.textContent = `Points: ${playerPoints}`;
+                    rankDisplay.textContent = `Rank: ${playerRank}/${totalRegisteredPlayers}`;
+                    alert(`Welcome, ${username}!`);
+                    loginButton.style.display = 'none';
+                    profileButton.style.display = 'block';
+                } else if (data.type === 'chat') {
+                    const messageElement = document.createElement('div');
+                    messageElement.textContent = `${data.username}: ${data.message}`;
+                    document.getElementById('chatbox').appendChild(messageElement);
+                    document.getElementById('chatbox').scrollTop = document.getElementById('chatbox').scrollHeight;
+                } else if (data.type === 'init') {
+                    initGladiators(data.gladiators);
+                } else if (data.type === 'update') {
+                    applyGameState(data.gladiators);
+                } else if (data.type === 'attack') {
+                    handleAttackUpdate(data.attackerId, data.targetId, data.damage);
+                } else if (data.type === 'countdown') {
+                    showCountdown(data.timer);
+                } else if (data.type === 'start') {
+                    hideCountdown();
+                    combatPhase = true;
+                } else if (data.type === 'end') {
+                    combatPhase = false;
+                    showWinnerMessage(data.winner);
+                    // Update player's points after game ends
+                    if (data.profile && data.profile.address === userProfile.address) {
+                        playerPoints = data.profile.points || 0;
+                        playerRank = data.profile.rank || '--';
+                        totalRegisteredPlayers = data.profile.totalRegisteredPlayers || '--';
+                        pointsDisplay.textContent = `Points: ${playerPoints}`;
+                        rankDisplay.textContent = `Rank: ${playerRank}/${totalRegisteredPlayers}`;
+                    }
+                } else if (data.type === 'remove') {
+                    removeGladiator(data.id);
+                } else if (data.type === 'profileUpdate') {
+                    if (userProfile && userProfile.address === data.address) {
+                        username = data.username;
+                        userProfile.username = data.username;
+                        userProfile.skin = data.skin;
+                        alert(`Your username and skin have been updated!`);
+                    }
+                } else if (data.type === 'heal') {
+                    handleHealing(data.gladiatorId, data.amount);
+                } else if (data.type === 'pointsUpdate') {
+                    if (userProfile && userProfile.address === data.address) {
+                        playerPoints = data.points || 0;
+                        playerRank = data.rank || '--';
+                        totalRegisteredPlayers = data.totalRegisteredPlayers || '--';
+                        pointsDisplay.textContent = `Points: ${playerPoints}`;
+                        rankDisplay.textContent = `Rank: ${playerRank}/${totalRegisteredPlayers}`;
+                    }
+                }
+            });
+
+            socket.addEventListener('close', function (event) {
+                console.log('Disconnected from server');
+            });
+
+            socket.addEventListener('error', function (event) {
+                console.error('WebSocket error observed:', event);
+            });
+
+            function initGladiators(data) {
+                gladiators = gladiators.filter(g => {
+                    const exists = data.find(d => d.id === g.id);
+                    if (!exists) {
+                        g.remove();
+                    }
+                    return exists;
+                });
+
+                data.forEach(serverGladiator => {
+                    let clientGladiator = gladiators.find(g => g.id === serverGladiator.id);
+                    if (clientGladiator) {
+                        clientGladiator.health = serverGladiator.health;
+                        clientGladiator.reconcile(serverGladiator.position ? new THREE.Vector3(
+                            serverGladiator.position.x,
+                            serverGladiator.position.y,
+                            serverGladiator.position.z
+                        ) : null);
+                        clientGladiator.mesh.rotation.y = serverGladiator.rotation || 0;
+                        if (serverGladiator.health <= 0) {
+                            clientGladiator.remove();
+                        }
+                        if (serverGladiator.state !== clientGladiator.currentState) {
+                            clientGladiator.setState(serverGladiator.state);
+                        }
+                    } else {
+                        const newGladiator = new Gladiator(
+                            serverGladiator.id,
+                            serverGladiator.name,
+                            serverGladiator.color,
+                            serverGladiator.position || { x: 0, y: 1.5, z: 0 },
+                            serverGladiator.skin || 'frogman.fbx'
+                        );
+                        gladiators.push(newGladiator);
+
+                        if (!gladiatorsSpawned) {
+                            gladiatorsSpawned = true;
+                            updateCameraTarget(0);
+                        }
+                    }
+                });
+            }
+
+            function applyGameState(serverGladiators) {
+                serverGladiators.forEach(serverGladiator => {
+                    let clientGladiator = gladiators.find(g => g.id === serverGladiator.id);
+                    if (clientGladiator) {
+                        clientGladiator.health = serverGladiator.health;
+                        clientGladiator.reconcile(serverGladiator.position ? new THREE.Vector3(
+                            serverGladiator.position.x,
+                            serverGladiator.position.y,
+                            serverGladiator.position.z
+                        ) : null);
+                        clientGladiator.mesh.rotation.y = serverGladiator.rotation || 0;
+                        if (serverGladiator.health <= 0) {
+                            clientGladiator.remove();
+                        }
+                        if (serverGladiator.state !== clientGladiator.currentState) {
+                            clientGladiator.setState(serverGladiator.state);
+                        }
+                    } else {
+                        const newGladiator = new Gladiator(
+                            serverGladiator.id,
+                            serverGladiator.name,
+                            serverGladiator.color,
+                            serverGladiator.position || { x: 0, y: 1.5, z: 0 },
+                            serverGladiator.skin || 'frogman.fbx'
+                        );
+                        gladiators.push(newGladiator);
+                    }
+                });
+            }
+
+            function handleAttackUpdate(attackerId, targetId, damage) {
+                const attacker = gladiators.find(g => g.id === attackerId);
+                const target = gladiators.find(g => g.id === targetId);
+                if (attacker && target) {
+                    target.takeDamage(damage);
+                    attacker.setTarget(target);
+
+                    if (combatPhase) {
+                        attacker.punch();
+                    }
+                }
+            }
+
+            function handleHealing(gladiatorId, amount) {
+                const gladiator = gladiators.find(g => g.id === gladiatorId);
+                if (gladiator) {
+                    gladiator.health += amount;
+                    gladiator.hpBar.style.width = `${(gladiator.health / 50) * 100}%`;
+
+                    gladiator.showHealing(amount);
+                }
+            }
+
+            function removeGladiator(id) {
+                const gladiator = gladiators.find(g => g.id === id);
+                if (gladiator) {
+                    gladiator.remove();
+                    gladiators = gladiators.filter(g => g.id !== id);
+                    gladiators.forEach(g => {
+                        if (g.currentTarget && g.currentTarget.id === id) {
+                            g.currentTarget = null;
+                            g.inCombat = false;
+                            g.state = 'frogmanidle';
+                        }
+                    });
+                }
+            }
+
+            function showCountdown(timer) {
+                countdownTimer.textContent = timer;
+                countdownTimer.style.display = 'block';
+            }
+
+            function hideCountdown() {
+                countdownTimer.style.display = 'none';
+                combatPhase = true;
+            }
+
+            function showWinnerMessage(winner) {
+                combatPhase = false;
+                winnerMessage.textContent = `Winner: ${winner}`;
+                winnerMessage.style.display = 'block';
+                setTimeout(() => {
+                    winnerMessage.style.display = 'none';
+                }, 10000);
+            }
+
+            document.getElementById('send-button').addEventListener('click', function () {
+                const input = document.getElementById('message-input');
+                const message = input.value;
+                socket.send(JSON.stringify({ type: 'chat', username: username, message: message }));
+                input.value = '';
+            });
+
+            document.getElementById('message-input').addEventListener('keydown', function (event) {
+                if (event.key === 'Enter') {
+                    document.getElementById('send-button').click();
+                }
+            });
+
+            camera.position.z = 60;
+            camera.position.y = 40;
+            camera.lookAt(0, 5, 0);
+
+            const clock = new THREE.Clock();
+
+            window.addEventListener('resize', onWindowResize, false);
+
+            function onWindowResize() {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            let targetIndex = 0;
+            let nextTargetTime = 0;
+
+            function updateCameraTarget(delta) {
+                nextTargetTime -= delta;
+                if (nextTargetTime <= 0) {
+                    nextTargetTime = 8;
+                    const aliveGladiators = gladiators.filter(g => g.health > 0);
+                    if (aliveGladiators.length > 0) {
+                        targetIndex = (targetIndex + 1) % aliveGladiators.length;
+                        orbitDirection *= -1; // Alternate orbit direction
+                    }
+                }
+
+                if (gladiators.length > 0) {
+                    const target = gladiators[targetIndex];
+                    if (target) {
+                        const targetPosition = target.mesh.position.clone().add(new THREE.Vector3(0, 0, 0));
+                        controls.target.lerp(targetPosition, 0.1);
+
+                        // Implement slow camera rotation around the target
+                        const angle = delta * 0.2 * orbitDirection; // Adjust the speed as needed
+                        const offset = new THREE.Vector3(camera.position.x - target.mesh.position.x, 0, camera.position.z - target.mesh.position.z);
+                        offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
+                        camera.position.set(target.mesh.position.x + offset.x, camera.position.y, target.mesh.position.z + offset.z);
+
+                        controls.update();
+                    }
+                }
+            }
+
+            function animate() {
+                requestAnimationFrame(animate);
+
+                const delta = clock.getDelta();
+
+                if (combatPhase || gladiators.length > 0) {
+                    updateCameraTarget(delta);
+                }
+
+                gladiators.forEach(gladiator => gladiator.update(delta));
+                renderer.render(scene, camera);
+            }
+
+            animate();
+        });
+    </script>
+</body>
+
+</html>
